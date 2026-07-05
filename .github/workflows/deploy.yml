@@ -131,12 +131,25 @@ jobs:
               --exclude='terraform' --exclude='*.pyc' \
               -czf /tmp/app.tar.gz .
 
-          # Copy via bastion SCP hop
+          # Copy the tarball to the bastion
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa /tmp/app.tar.gz \
               ec2-user@${BASTION_IP}:/tmp/app.tar.gz
 
+          # Copy the SSH private key to the bastion so it can forward the tarball to the app instance
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ~/.ssh/id_rsa \
+              ec2-user@${BASTION_IP}:/home/ec2-user/.ssh/id_rsa
+
+          # Set correct permissions on the key that was just copied to the bastion
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${BASTION_IP} \
+            "chmod 600 ~/.ssh/id_rsa"
+
+          # SCP the tarball from the bastion to the app instance (key now exists on bastion)
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${BASTION_IP} \
             "scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa /tmp/app.tar.gz ec2-user@${APP_IP}:/tmp/app.tar.gz"
+
+          # Clean up the private key from the bastion for security
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${BASTION_IP} \
+            "rm -f ~/.ssh/id_rsa"
 
       - name: Run Ansible playbook
         env:
